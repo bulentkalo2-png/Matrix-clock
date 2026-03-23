@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MATRIX CHRONO v2.0 — ORACLE</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+
+:root {
+  --g:   #00ff41;
+  --g2:  #39ff14;
+  --g3:  #00cc33;
+  --amb: #ffb300;
+  --amb2:#ff8c00;
+  --red: #ff3131;
+  --bg:  #010801;
+  --bg2: #04110a;
+  --glow-g: 0 0 8px #00ff41, 0 0 22px #00ff4188, 0 0 50px #00ff4133;
+  --glow-a: 0 0 8px #ffb300, 0 0 22px #ffb30088, 0 0 50px #ffb30033;
+  --glow-r: 0 0 8px #ff3131, 0 0 22px #ff313188;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{
+  width:100%;height:100%;
+  background:var(--bg);
+  overflow:hidden;
+  font-family:'Share Tech Mono',monospace;
+  cursor:none;
+  user-select:none;
+  -webkit-user-select:none;
+  touch-action:manipulation;
+}
+
+/* ══ CANVAS LAYERS ══ */
+#rain-canvas{position:fixed;inset:0;z-index:1;}
+#wave-canvas{position:fixed;inset:0;z-index:2;pointer-events:none;}
+
+/* ══ HOLOGRAM FLICKER ══ */
+#holo-layer{
+  position:fixed;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(0deg,
+    rgba(0,255,65,0.012) 0%,
+    transparent 40%,
+    rgba(0,255,65,0.006) 100%);
+  animation:holoF 0.07s steps(1) infinite;
+}
+@keyframes holoF{
+  0%  {opacity:1;transform:none;}
+  7%  {opacity:.96;transform:translateX(.4px);}
+  14% {opacity:1;transform:none;}
+  21% {opacity:.93;transform:translateX(-.4px) skewX(.12deg);}
+  28% {opacity:1;transform:none;}
+  35% {opacity:.97;}
+  42% {opacity:1;}
+  49% {opacity:.95;transform:translateX(.6px) skewX(-.1deg);}
+  56% {opacity:1;transform:none;}
+  63% {opacity:.98;}
+  70% {opacity:1;}
+  77% {opacity:.92;transform:skewX(.2deg);}
+  84% {opacity:1;transform:none;}
+  91% {opacity:.97;}
+  98% {opacity:1;}
+}
+
+/* ══ SCANLINES ══ */
+.scanlines{
+  position:fixed;inset:0;z-index:4;pointer-events:none;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 3px,
+    rgba(0,0,0,.1) 3px,rgba(0,0,0,.1) 4px);
+}
+
+/* ══ VIGNETTE ══ */
+.vignette{
+  position:fixed;inset:0;z-index:5;pointer-events:none;
+  background:radial-gradient(ellipse 84% 78% at 50% 50%,transparent 30%,rgba(1,8,1,.92) 100%);
+}
+
+/* ══ MAIN UI ══ */
+#main-ui{
+  position:fixed;inset:0;z-index:10;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  animation:uiPulse 7s ease-in-out infinite;
+}
+@keyframes uiPulse{
+  0%,100%{filter:brightness(1);}
+  2%     {filter:brightness(1.09) saturate(1.3);}
+  4%     {filter:brightness(.91);}
+  6%     {filter:brightness(1);}
+  51%    {filter:brightness(1);}
+  53%    {filter:brightness(1.12) hue-rotate(4deg);}
+  55%    {filter:brightness(.9);}
+  57%    {filter:brightness(1.04);}
+  59%    {filter:brightness(1);}
+}
+
+/* ══ CORNERS ══ */
+.corner{position:fixed;width:52px;height:52px;z-index:20;pointer-events:none;}
+.corner::before,.corner::after{
+  content:'';position:absolute;
+  background:var(--g);box-shadow:var(--glow-g);
+}
+.corner::before{width:100%;height:1.5px;top:0;left:0;}
+.corner::after {width:1.5px;height:100%;top:0;left:0;}
+.corner.tl{top:10px;left:10px;}
+.corner.tr{top:10px;right:10px;transform:scaleX(-1);}
+.corner.bl{bottom:10px;left:10px;transform:scaleY(-1);}
+.corner.br{bottom:10px;right:10px;transform:scale(-1);}
+
+/* ══ TOP HUD ══ */
+.hud-top{
+  position:fixed;top:0;left:0;right:0;z-index:15;
+  padding:13px 26px;
+  display:flex;justify-content:space-between;align-items:center;
+  border-bottom:1px solid rgba(0,255,65,.1);
+  background:linear-gradient(180deg,rgba(0,12,2,.85) 0%,transparent 100%);
+}
+.hud-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:11px;font-weight:700;
+  color:var(--amb);text-shadow:var(--glow-a);
+  letter-spacing:4px;
+}
+
+/* ── Weather ── */
+.weather-hud{display:flex;align-items:center;gap:14px;}
+.weather-icon{font-size:24px;line-height:1;}
+.weather-data{text-align:right;}
+.weather-temp{
+  font-family:'Orbitron',sans-serif;
+  font-size:20px;font-weight:700;
+  color:var(--amb);text-shadow:var(--glow-a);
+  line-height:1.1;
+}
+.weather-desc{font-size:9px;color:rgba(0,255,65,.5);letter-spacing:2px;text-transform:uppercase;}
+.weather-extra{font-size:8px;color:rgba(255,179,0,.4);letter-spacing:1px;}
+
+.status-row{
+  display:flex;align-items:center;gap:6px;
+  font-size:9px;color:rgba(0,255,65,.4);letter-spacing:2px;
+}
+.live-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--g);box-shadow:var(--glow-g);
+  animation:liveBlink 1.3s ease-in-out infinite;
+}
+@keyframes liveBlink{0%,100%{opacity:1;}50%{opacity:.15;}}
+
+/* ══ CLOCK CORE ══ */
+.clock-center{
+  display:flex;flex-direction:column;
+  align-items:center;gap:5px;
+  margin-top:-15px;
+}
+
+/* ── Digital ── */
+.digital-wrap{position:relative;}
+
+.digital-time{
+  font-family:'Orbitron',sans-serif;
+  font-weight:900;
+  font-size:clamp(70px,12.5vw,148px);
+  color:var(--g);
+  text-shadow:var(--glow-g);
+  letter-spacing:-1px;
+  line-height:1;
+  position:relative;
+}
+/* hologram scan sweep across clock */
+.digital-time::after{
+  content:'';
+  position:absolute;
+  left:-4%;right:-4%;
+  height:2px;
+  background:linear-gradient(90deg,transparent,rgba(0,255,65,.9),transparent);
+  box-shadow:0 0 14px var(--g);
+  animation:scanSweep 3.5s linear infinite;
+  pointer-events:none;
+}
+@keyframes scanSweep{
+  0%  {top:-5%;opacity:0;}
+  8%  {opacity:1;}
+  88% {opacity:1;}
+  100%{top:108%;opacity:0;}
+}
+
+.colon{
+  color:var(--amb);text-shadow:var(--glow-a);
+  animation:colonBlink 1s step-end infinite;
+}
+@keyframes colonBlink{0%,100%{opacity:1;}50%{opacity:.06;}}
+
+.sec-small{
+  font-size:.29em;vertical-align:super;
+  color:var(--amb2);text-shadow:var(--glow-a);
+  margin-left:6px;font-weight:400;
+}
+
+/* Glitch overlay */
+.glitch-layer{
+  position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  color:var(--amb);
+  text-shadow:-3px 0 var(--amb);
+  font-family:'Orbitron',sans-serif;
+  font-weight:900;
+  font-size:clamp(70px,12.5vw,148px);
+  line-height:1;
+  opacity:0;pointer-events:none;
+  animation:glitch 11s infinite;
+}
+@keyframes glitch{
+  0%,90%,100%{opacity:0;transform:none;}
+  91%{opacity:.65;transform:translate(-5px,2px);clip-path:polygon(0 20%,100% 20%,100% 42%,0 42%);}
+  92%{opacity:0;}
+  93%{opacity:.4;transform:translate(4px,-2px);clip-path:polygon(0 58%,100% 58%,100% 76%,0 76%);}
+  94%{opacity:0;}
+  95%{opacity:.3;transform:translate(-2px,0) skewX(.5deg);clip-path:polygon(0 5%,100% 5%,100% 18%,0 18%);}
+  96%{opacity:0;}
+}
+
+/* ── Date ── */
+.date-row{display:flex;align-items:center;gap:18px;}
+.date-line{
+  width:55px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--g),transparent);
+  box-shadow:0 0 5px var(--g);
+}
+.date-text{
+  font-family:'Rajdhani',sans-serif;font-weight:300;
+  font-size:clamp(12px,1.9vw,19px);
+  color:rgba(0,255,65,.7);letter-spacing:5px;text-transform:uppercase;
+}
+
+/* ── Analog ── */
+.analog-wrapper{margin-top:8px;position:relative;}
+
+/* ══ VISUALIZER CANVAS ══ */
+#viz-canvas{
+  position:fixed;bottom:0;left:0;right:0;
+  z-index:12;pointer-events:none;
+  height:96px;
+}
+
+/* ══ MIC PROMPT ══ */
+#mic-prompt{
+  position:fixed;bottom:104px;left:50%;
+  transform:translateX(-50%);
+  z-index:13;
+  font-size:9px;color:rgba(0,255,65,.3);
+  letter-spacing:2px;
+  animation:micFade 2s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes micFade{0%,100%{opacity:.3;}50%{opacity:.8;}}
+
+/* ══ ALARM FAB ══ */
+#alarm-fab{
+  position:fixed;bottom:108px;right:18px;
+  z-index:25;
+  width:50px;height:50px;border-radius:50%;
+  background:rgba(0,10,2,.92);
+  border:1px solid rgba(0,255,65,.4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;
+  box-shadow:var(--glow-g);
+  transition:all .2s;
+}
+#alarm-fab:active{transform:scale(.9);}
+#alarm-fab .alarm-count{
+  position:absolute;top:-4px;right:-4px;
+  width:18px;height:18px;border-radius:50%;
+  background:var(--amb);
+  font-size:10px;color:#000;
+  display:none;align-items:center;justify-content:center;
+  font-family:'Orbitron',sans-serif;font-weight:700;
+  box-shadow:var(--glow-a);
+}
+#alarm-fab .alarm-count.show{display:flex;}
+
+/* ══ ALARM PANEL ══ */
+#alarm-panel{
+  position:fixed;
+  bottom:-340px;left:0;right:0;
+  z-index:30;
+  background:rgba(1,11,3,.98);
+  border-top:1px solid rgba(0,255,65,.4);
+  box-shadow:0 -8px 60px rgba(0,255,65,.18);
+  padding:20px 28px 24px;
+  transition:bottom .45s cubic-bezier(.16,1,.3,1);
+}
+#alarm-panel.open{bottom:0;}
+
+.alarm-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:11px;font-weight:700;
+  color:var(--g);text-shadow:var(--glow-g);
+  letter-spacing:4px;margin-bottom:14px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.alarm-close{
+  font-size:14px;color:var(--amb);
+  text-shadow:var(--glow-a);cursor:pointer;
+  padding:4px 8px;letter-spacing:1px;
+}
+
+.alarm-add-row{
+  display:flex;gap:10px;align-items:center;margin-bottom:14px;
+  flex-wrap:wrap;
+}
+.alarm-input{
+  background:rgba(0,255,65,.05);
+  border:1px solid rgba(0,255,65,.35);
+  border-radius:4px;
+  padding:10px 12px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:19px;
+  color:var(--g);text-shadow:var(--glow-g);
+  width:130px;outline:none;
+  -webkit-appearance:none;color-scheme:dark;
+}
+.alarm-label-input{
+  flex:1;min-width:120px;
+  background:rgba(0,255,65,.03);
+  border:1px solid rgba(0,255,65,.15);
+  border-radius:4px;
+  padding:10px 12px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:13px;color:rgba(0,255,65,.75);
+  outline:none;
+}
+.alarm-label-input::placeholder{color:rgba(0,255,65,.22);}
+.alarm-add-btn{
+  background:linear-gradient(135deg,rgba(0,255,65,.15),rgba(0,255,65,.07));
+  border:1px solid var(--g);border-radius:4px;
+  padding:10px 18px;
+  font-family:'Orbitron',sans-serif;
+  font-size:10px;font-weight:700;
+  color:var(--g);text-shadow:var(--glow-g);
+  letter-spacing:2px;cursor:pointer;
+  box-shadow:var(--glow-g);transition:all .2s;
+  white-space:nowrap;
+}
+.alarm-add-btn:active{transform:scale(.95);}
+
+.alarm-list{
+  display:flex;flex-direction:column;gap:7px;
+  max-height:150px;overflow-y:auto;
+  scrollbar-width:none;
+}
+.alarm-list::-webkit-scrollbar{display:none;}
+
+.alarm-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;
+  background:rgba(0,255,65,.03);
+  border:1px solid rgba(0,255,65,.1);
+  border-radius:4px;
+  transition:all .3s;
+}
+.alarm-item.active{
+  border-color:rgba(0,255,65,.4);
+  background:rgba(0,255,65,.07);
+}
+.alarm-item-time{
+  font-family:'Orbitron',sans-serif;
+  font-size:17px;font-weight:700;
+  color:var(--amb);text-shadow:var(--glow-a);
+  min-width:65px;
+}
+.alarm-item-label{
+  flex:1;font-size:10px;
+  color:rgba(0,255,65,.45);letter-spacing:2px;
+  text-transform:uppercase;
+}
+.alarm-item-del{
+  font-size:13px;color:rgba(255,49,49,.5);
+  cursor:pointer;padding:4px 6px;transition:color .2s;
+}
+.alarm-item-del:active{color:var(--red);text-shadow:var(--glow-r);}
+
+/* Toggle */
+.toggle{
+  position:relative;width:38px;height:21px;
+  background:rgba(0,255,65,.08);
+  border:1px solid rgba(0,255,65,.25);
+  border-radius:11px;cursor:pointer;
+  transition:all .3s;flex-shrink:0;
+}
+.toggle.on{
+  background:rgba(0,255,65,.22);
+  border-color:var(--g);
+  box-shadow:0 0 10px rgba(0,255,65,.3);
+}
+.toggle-knob{
+  position:absolute;top:2px;left:2px;
+  width:15px;height:15px;border-radius:50%;
+  background:rgba(0,255,65,.35);
+  transition:all .3s;
+}
+.toggle.on .toggle-knob{
+  left:19px;
+  background:var(--g);
+  box-shadow:var(--glow-g);
+}
+
+/* ══ ALARM RING BANNER ══ */
+#alarm-ring{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(1,8,2,.97);
+  display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;
+  animation:ringFlash .5s ease-in-out infinite;
+}
+#alarm-ring.show{display:flex;}
+@keyframes ringFlash{
+  0%,100%{background:rgba(1,8,2,.97);}
+  50%    {background:rgba(4,20,6,.97);}
+}
+.ring-time{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(48px,10vw,96px);
+  font-weight:900;
+  color:var(--amb);text-shadow:var(--glow-a);
+}
+.ring-label{
+  font-size:14px;letter-spacing:6px;
+  color:rgba(255,179,0,.7);text-transform:uppercase;
+}
+.ring-border{
+  width:80%;height:2px;
+  background:linear-gradient(90deg,transparent,var(--amb),transparent);
+  box-shadow:var(--glow-a);
+  animation:borderPulse 1s ease-in-out infinite;
+}
+@keyframes borderPulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+.ring-dismiss{
+  margin-top:8px;
+  background:rgba(255,179,0,.1);
+  border:1px solid var(--amb);
+  padding:14px 48px;
+  font-family:'Orbitron',sans-serif;
+  font-size:12px;font-weight:700;
+  color:var(--amb);letter-spacing:4px;
+  cursor:pointer;border-radius:4px;
+  box-shadow:var(--glow-a);
+  text-transform:uppercase;
+}
+.ring-dismiss:active{transform:scale(.96);}
+
+/* ══ SIDE ELEMENTS ══ */
+.city-tag{
+  position:fixed;left:26px;top:50%;
+  transform:translateY(-50%) rotate(-90deg);
+  transform-origin:center;
+  font-family:'Orbitron',sans-serif;
+  font-size:9px;font-weight:400;
+  color:rgba(0,255,65,.16);
+  letter-spacing:8px;text-transform:uppercase;
+  z-index:15;pointer-events:none;
+}
+.data-stream{
+  position:fixed;right:16px;top:50%;
+  transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:5px;
+  z-index:15;pointer-events:none;
+}
+.stream-item{
+  font-size:8px;color:rgba(0,255,65,.18);
+  letter-spacing:1px;text-align:right;
+  animation:streamF 3.5s ease-in-out infinite;
+}
+.stream-item:nth-child(2n){animation-delay:.7s;color:rgba(255,179,0,.15);}
+.stream-item:nth-child(3n){animation-delay:1.4s;}
+@keyframes streamF{0%,100%{opacity:.25;}50%{opacity:1;}}
+
+/* ══ RIPPLE ══ */
+.ripple{
+  position:fixed;border-radius:50%;
+  border:1px solid rgba(0,255,65,.8);
+  box-shadow:0 0 18px rgba(0,255,65,.4);
+  pointer-events:none;z-index:99;
+  width:80px;height:80px;
+  transition:transform .7s ease-out,opacity .7s ease-out;
+  transform:scale(0);opacity:1;
+}
+
+/* loading blink */
+.lb{animation:lb 1s step-end infinite;}
+@keyframes lb{0%,100%{opacity:1;}50%{opacity:.2;}}
+
+</style>
+</head>
+<body>
+
+<canvas id="rain-canvas"></canvas>
+<canvas id="wave-canvas"></canvas>
+<div id="holo-layer"></div>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<!-- Corners -->
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<div class="city-tag">İSTANBUL · TR · 41°N 28°E</div>
+<div class="data-stream" id="dataStream"></div>
+
+<!-- TOP HUD -->
+<div class="hud-top">
+  <div class="hud-title">MATRIX_CHRONO&nbsp;//&nbsp;v2.0</div>
+
+  <div class="weather-hud">
+    <div class="weather-icon" id="wIcon">⏳</div>
+    <div class="weather-data">
+      <div class="weather-temp" id="wTemp"><span class="lb">--°C</span></div>
+      <div class="weather-desc" id="wDesc">BAĞLANIYOR...</div>
+      <div class="weather-extra" id="wExtra">NEM:--% RÜZGAR:-- km/h</div>
+    </div>
+  </div>
+
+  <div class="status-row">
+    <div class="live-dot"></div>
+    <span id="sysStatus">NTP:SYNC</span>
+  </div>
+</div>
+
+<!-- MAIN UI -->
+<div id="main-ui">
+  <div class="clock-center">
+
+    <div class="digital-wrap">
+      <div class="digital-time" id="digitalClock">
+        <span id="hh">00</span><span class="colon">:</span><span id="mm">00</span><span class="sec-small" id="ss">00</span>
+      </div>
+      <div class="glitch-layer" id="glitchLayer">00:00</div>
+    </div>
+
+    <div class="date-row">
+      <div class="date-line"></div>
+      <div class="date-text" id="dateText">PAZARTESİ // 23.03.2026</div>
+      <div class="date-line" style="transform:scaleX(-1)"></div>
+    </div>
+
+    <div class="analog-wrapper">
+      <canvas id="analog-canvas" width="230" height="230"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<!-- Visualizer -->
+<canvas id="viz-canvas"></canvas>
+<div id="mic-prompt">▶ MİKROFON İÇİN DOKUN // VİZÜALİZER AKTİF OLACAK</div>
+
+<!-- Alarm FAB -->
+<div id="alarm-fab" onclick="toggleAlarmPanel()">
+  ⏰<div class="alarm-count" id="alarmCount">0</div>
+</div>
+
+<!-- Alarm Panel -->
+<div id="alarm-panel">
+  <div class="alarm-title">
+    <span>// ALARM SİSTEMİ</span>
+    <span class="alarm-close" onclick="toggleAlarmPanel()">✕ KAPAT</span>
+  </div>
+  <div class="alarm-add-row">
+    <input type="time" class="alarm-input" id="alarmTime">
+    <input type="text" class="alarm-label-input" id="alarmLabel" placeholder="Etiket... (ör: KAHVALTI)">
+    <button class="alarm-add-btn" onclick="addAlarm()">+ EKLE</button>
+  </div>
+  <div class="alarm-list" id="alarmList"></div>
+</div>
+
+<!-- Alarm Ring -->
+<div id="alarm-ring">
+  <div class="ring-border"></div>
+  <div class="ring-time" id="ringTime">07:30</div>
+  <div class="ring-label" id="ringLabel">ALARM</div>
+  <div class="ring-border"></div>
+  <button class="ring-dismiss" onclick="dismissAlarm()">// DURDUR //</button>
+</div>
+
+<script>
+// ════════════════════════════════════
+// DENSE MATRIX RAIN
+// ════════════════════════════════════
+const RC = document.getElementById('rain-canvas');
+const rX = RC.getContext('2d');
+
+function resizeRC(){RC.width=innerWidth;RC.height=innerHeight;}
+resizeRC();
+addEventListener('resize',resizeRC);
+
+const CHARS='アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'+
+            '日月火水木金土年時分秒天地人'+
+            '0123456789ABCDEF$#@%&∑∇∆∫≈∞αβγΩΨΦΞΠΛ⌀⌁⌂';
+
+const CSIZ=13;
+let drops=[];
+function buildDrops(){
+  drops=[];
+  const cols=Math.floor(innerWidth/CSIZ)+4;
+  for(let i=0;i<cols;i++) drops.push({
+    x:i*CSIZ,
+    y:Math.random()*-innerHeight*1.8,
+    spd:0.6+Math.random()*2.4,
+    len:12+Math.floor(Math.random()*35),
+    chars:[],
+    amber:Math.random()>.87,
+    bright:Math.random()>.93,
+    op:0.1+Math.random()*0.38,
+    mut:0.015+Math.random()*.09
+  });
+}
+buildDrops();
+addEventListener('resize',buildDrops);
+
+function animRain(){
+  requestAnimationFrame(animRain);
+  rX.fillStyle='rgba(1,8,1,0.86)';
+  rX.fillRect(0,0,RC.width,RC.height);
+  rX.font=`${CSIZ}px 'Share Tech Mono',monospace`;
+
+  drops.forEach(d=>{
+    for(let j=0;j<d.len;j++){
+      if(!d.chars[j]||Math.random()<d.mut)
+        d.chars[j]=CHARS[Math.floor(Math.random()*CHARS.length)];
+      const a=Math.pow((d.len-j)/d.len,1.6)*d.op;
+      if(j===0&&d.bright){
+        rX.fillStyle='#ffffff';
+        rX.shadowColor=d.amber?'#ffb300':'#00ff41';
+        rX.shadowBlur=14;
+      } else if(j<3){
+        rX.fillStyle=d.amber?`rgba(255,179,0,${a*2.6})`:`rgba(0,255,65,${a*2.6})`;
+        rX.shadowBlur=0;
+      } else {
+        rX.fillStyle=d.amber?`rgba(255,130,0,${a})`:`rgba(0,200,40,${a})`;
+        rX.shadowBlur=0;
+      }
+      rX.fillText(d.chars[j],d.x,d.y-j*CSIZ);
+    }
+    rX.shadowBlur=0;
+    d.y+=d.spd;
+    if(d.y-d.len*CSIZ>RC.height){
+      d.y=-d.len*CSIZ*.6;
+      d.spd=0.6+Math.random()*2.4;
+      d.amber=Math.random()>.87;
+      d.bright=Math.random()>.93;
+      d.op=0.1+Math.random()*0.38;
+    }
+  });
+}
+animRain();
+
+// ════════════════════════════════════
+// AUDIO VISUALIZER + SIDE WAVES
+// ════════════════════════════════════
+const WC=document.getElementById('wave-canvas');
+const wX=WC.getContext('2d');
+const VC=document.getElementById('viz-canvas');
+const vX=VC.getContext('2d');
+
+function resizeWC(){WC.width=innerWidth;WC.height=innerHeight;}
+function resizeVC(){VC.width=innerWidth;VC.height=96;VC.style.height='96px';}
+resizeWC();resizeVC();
+addEventListener('resize',()=>{resizeWC();resizeVC();});
+
+let micActive=false,analyser=null,freqData=null,fakePhase=0;
+let smoothed=new Float32Array(80).fill(0);
+let micRequested=false;
+
+async function initMic(){
+  try{
+    const ac=new (AudioContext||webkitAudioContext)();
+    const st=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    const src=ac.createMediaStreamSource(st);
+    analyser=ac.createAnalyser();
+    analyser.fftSize=512;
+    analyser.smoothingTimeConstant=.82;
+    freqData=new Uint8Array(analyser.frequencyBinCount);
+    src.connect(analyser);
+    micActive=true;
+    document.getElementById('mic-prompt').style.display='none';
+  } catch(e){
+    micActive=false;
+  }
+}
+
+addEventListener('touchstart',()=>{
+  if(!micRequested){micRequested=true;initMic();}
+},{passive:true});
+
+const BARS=80;
+
+function drawViz(){
+  const W=VC.width,H=VC.height;
+  vX.clearRect(0,0,W,H);
+
+  const raw=new Float32Array(BARS);
+  if(micActive&&analyser){
+    analyser.getByteFrequencyData(freqData);
+    const chunk=Math.floor(freqData.length/BARS);
+    for(let i=0;i<BARS;i++){
+      let s=0;
+      for(let j=0;j<chunk;j++) s+=freqData[i*chunk+j];
+      raw[i]=s/chunk/255;
+    }
+  } else {
+    fakePhase+=0.035;
+    for(let i=0;i<BARS;i++){
+      const t=fakePhase+i*.22;
+      raw[i]=Math.max(0,Math.min(1,
+        Math.sin(t)*.2+Math.sin(t*2.3)*.1+Math.sin(t*.6)*.14+.06
+      ));
+    }
+  }
+
+  for(let i=0;i<BARS;i++) smoothed[i]=smoothed[i]*.78+raw[i]*.22;
+
+  const bw=W/BARS;
+  for(let i=0;i<BARS;i++){
+    const h=smoothed[i]*(H-6);
+    const x=i*bw+1;
+    const w=bw-2;
+    const hot=smoothed[i]>.45;
+
+    const g=vX.createLinearGradient(0,H,0,H-h);
+    g.addColorStop(0,'rgba(0,160,30,.55)');
+    g.addColorStop(.55,'rgba(0,255,65,.8)');
+    g.addColorStop(1,hot?'rgba(255,179,0,.95)':'rgba(0,255,65,.9)');
+
+    vX.fillStyle=g;
+    vX.shadowColor=hot?'#ffb300':'#00ff41';
+    vX.shadowBlur=7;
+    vX.fillRect(x,H-h,w,h);
+
+    // peak cap
+    if(h>10){
+      vX.fillStyle=hot?'#ffb300':'#39ff14';
+      vX.shadowBlur=14;
+      vX.fillRect(x,H-h-3,w,3);
+    }
+  }
+  vX.shadowBlur=0;
+}
+
+// ambient side waves
+function drawSideWaves(){
+  const W=WC.width,H=WC.height;
+  wX.clearRect(0,0,W,H);
+  const t=Date.now()/1000;
+  // Left — two layers
+  sideWave(36,H*.28,H*.44,t,   '#00ff41',.16, 1);
+  sideWave(50,H*.22,H*.56,t+.6,'#00ff41',.08,-1);
+  sideWave(22,H*.38,H*.26,t+1.2,'#39ff14',.06,1);
+  // Right
+  sideWave(W-36,H*.28,H*.44,t+1,  '#ffb300',.14,-1);
+  sideWave(W-50,H*.22,H*.56,t+1.6,'#ffb300',.07, 1);
+  sideWave(W-22,H*.38,H*.26,t+2.2,'#ff8c00',.05,-1);
+}
+
+function sideWave(cx,sy,len,t,col,al,dir){
+  wX.beginPath();
+  for(let i=0;i<=70;i++){
+    const p=i/70;
+    const y=sy+p*len;
+    const amp=Math.sin(p*Math.PI)*22;
+    const wx=cx+amp*Math.sin(p*Math.PI*4+t*2.2)*dir;
+    i===0?wX.moveTo(wx,y):wX.lineTo(wx,y);
+  }
+  wX.strokeStyle=col;
+  wX.globalAlpha=al;
+  wX.lineWidth=1.5;
+  wX.shadowColor=col;
+  wX.shadowBlur=9;
+  wX.stroke();
+  wX.shadowBlur=0;
+  wX.globalAlpha=1;
+}
+
+// ════════════════════════════════════
+// ANALOG CLOCK
+// ════════════════════════════════════
+const AC=document.getElementById('analog-canvas');
+const aX=AC.getContext('2d');
+const CX=115,CY=115,CR=105;
+
+function drawAnalog(h,m,s,ms=0){
+  aX.clearRect(0,0,230,230);
+
+  // outer glow
+  const og=aX.createRadialGradient(CX,CY,CR-14,CX,CY,CR+8);
+  og.addColorStop(0,'rgba(0,255,65,.12)');og.addColorStop(1,'rgba(0,255,65,0)');
+  aX.strokeStyle=og;aX.lineWidth=20;
+  aX.beginPath();aX.arc(CX,CY,CR,0,Math.PI*2);aX.stroke();
+
+  // rings
+  [[CR,'rgba(0,255,65,.28)',1],[CR-18,'rgba(0,255,65,.08)',.5]].forEach(([r,c,lw])=>{
+    aX.strokeStyle=c;aX.lineWidth=lw;
+    aX.beginPath();aX.arc(CX,CY,r,0,Math.PI*2);aX.stroke();
+  });
+
+  // ticks
+  for(let i=0;i<60;i++){
+    const a=(i/60)*Math.PI*2-Math.PI/2;
+    const maj=i%5===0;
+    const inner=CR-(maj?14:7);
+    aX.strokeStyle=maj?'rgba(0,255,65,.75)':'rgba(0,255,65,.2)';
+    aX.lineWidth=maj?2:.7;
+    if(maj){aX.shadowColor='#00ff41';aX.shadowBlur=9;}
+    aX.beginPath();
+    aX.moveTo(CX+Math.cos(a)*inner,CY+Math.sin(a)*inner);
+    aX.lineTo(CX+Math.cos(a)*(CR-2),CY+Math.sin(a)*(CR-2));
+    aX.stroke();
+    aX.shadowBlur=0;
+  }
+
+  // smooth second arc
+  const sa=(s+ms/1000)/60*Math.PI*2-Math.PI/2;
+  const sg=aX.createLinearGradient(0,0,230,230);
+  sg.addColorStop(0,'#00ff41');sg.addColorStop(1,'#ffb300');
+  aX.strokeStyle=sg;aX.lineWidth=2.5;
+  aX.shadowColor='#00ff41';aX.shadowBlur=16;
+  aX.beginPath();aX.arc(CX,CY,CR-8,-Math.PI/2,sa);aX.stroke();
+  aX.shadowBlur=0;
+
+  // hands
+  const ha=((h%12)+m/60+s/3600)/12*Math.PI*2-Math.PI/2;
+  const ma=(m+s/60)/60*Math.PI*2-Math.PI/2;
+  hand(ha,CR*.47,3.5,'#00ff41',15);
+  hand(ma,CR*.70,2,'#39ff14',9);
+
+  // center
+  aX.beginPath();aX.arc(CX,CY,8,0,Math.PI*2);
+  aX.fillStyle='#ffb300';aX.shadowColor='#ffb300';aX.shadowBlur=22;
+  aX.fill();aX.shadowBlur=0;
+  aX.beginPath();aX.arc(CX,CY,13,0,Math.PI*2);
+  aX.strokeStyle='rgba(0,255,65,.4)';aX.lineWidth=1;aX.stroke();
+}
+
+function hand(angle,len,lw,col,glow){
+  aX.shadowColor=col;aX.shadowBlur=glow;
+  aX.strokeStyle=col;aX.lineWidth=lw;aX.lineCap='round';
+  aX.beginPath();
+  aX.moveTo(CX+Math.cos(angle+Math.PI)*16,CY+Math.sin(angle+Math.PI)*16);
+  aX.lineTo(CX+Math.cos(angle)*len,CY+Math.sin(angle)*len);
+  aX.stroke();aX.shadowBlur=0;
+}
+
+// ════════════════════════════════════
+// CLOCK TICK
+// ════════════════════════════════════
+const DAYS=['PAZAR','PAZARTESİ','SALI','ÇARŞAMBA','PERŞEMBE','CUMA','CUMARTESİ'];
+const pad=n=>String(n).padStart(2,'0');
+let lastMin=-1;
+
+function tick(){
+  const n=new Date();
+  const H=n.getHours(),M=n.getMinutes(),S=n.getSeconds();
+  document.getElementById('hh').textContent=pad(H);
+  document.getElementById('mm').textContent=pad(M);
+  document.getElementById('ss').textContent=pad(S);
+  document.getElementById('glitchLayer').textContent=`${pad(H)}:${pad(M)}`;
+  document.getElementById('dateText').textContent=
+    `${DAYS[n.getDay()]} // ${pad(n.getDate())}.${pad(n.getMonth()+1)}.${n.getFullYear()}`;
+  if(M!==lastMin){lastMin=M;fetchWeather();}
+  checkAlarms(H,M,S);
+}
+tick();
+setInterval(tick,1000);
+
+// smooth RAF
+function rafLoop(){
+  requestAnimationFrame(rafLoop);
+  const n=new Date();
+  drawAnalog(n.getHours(),n.getMinutes(),n.getSeconds(),n.getMilliseconds());
+  drawViz();
+  drawSideWaves();
+}
+rafLoop();
+
+// ════════════════════════════════════
+// WEATHER — wttr.in (no key needed)
+// ════════════════════════════════════
+const WICONS={
+  113:'☀️',116:'⛅',119:'☁️',122:'☁️',143:'🌫️',
+  176:'🌦️',179:'🌨️',182:'🌧️',185:'🌧️',200:'⛈️',
+  227:'🌨️',230:'❄️',248:'🌫️',260:'🌫️',263:'🌦️',
+  266:'🌧️',281:'🌧️',284:'🌧️',293:'🌧️',296:'🌧️',
+  299:'🌧️',302:'🌧️',305:'🌧️',308:'🌧️',311:'🌧️',
+  314:'🌧️',317:'🌨️',320:'🌨️',323:'🌨️',326:'🌨️',
+  329:'❄️',332:'❄️',335:'❄️',338:'❄️',353:'🌦️',
+  356:'🌧️',359:'🌧️',362:'🌨️',365:'🌨️',368:'🌨️',
+  371:'❄️',386:'⛈️',389:'⛈️',392:'⛈️',395:'❄️'
+};
+
+async function fetchWeather(){
+  try{
+    const r=await fetch('https://wttr.in/Istanbul?format=j1&lang=tr',
+      {signal:AbortSignal.timeout(6000)});
+    const d=await r.json();
+    const c=d.current_condition[0];
+    const code=parseInt(c.weatherCode);
+    const icon=WICONS[code]||'🌡️';
+    const desc=(c.lang_tr?c.lang_tr[0].value:c.weatherDesc[0].value)
+                .toUpperCase().substring(0,16);
+    document.getElementById('wIcon').textContent=icon;
+    document.getElementById('wTemp').textContent=c.temp_C+'°C';
+    document.getElementById('wDesc').textContent=desc;
+    document.getElementById('wExtra').textContent=
+      `NEM:${c.humidity}%  RÜZGAR:${c.windspeedKmph}km/h  HİSSEDİLEN:${c.FeelsLikeC}°`;
+    document.getElementById('sysStatus').textContent='HAV:OK';
+  } catch(e){
+    document.getElementById('wTemp').textContent='ERR';
+    document.getElementById('wDesc').textContent='BAĞLANTI_HATA';
+    document.getElementById('wIcon').textContent='⚠️';
+  }
+}
+fetchWeather();
+
+// ════════════════════════════════════
+// ALARM SYSTEM
+// ════════════════════════════════════
+let alarms=[];
+try{alarms=JSON.parse(localStorage.getItem('mc_alarms')||'[]');}catch(e){alarms=[];}
+
+function saveA(){
+  try{localStorage.setItem('mc_alarms',JSON.stringify(alarms));}catch(e){}
+}
+
+function updateCount(){
+  const active=alarms.filter(a=>a.on).length;
+  const el=document.getElementById('alarmCount');
+  el.textContent=active;
+  el.classList.toggle('show',active>0);
+}
+
+function renderAlarms(){
+  const l=document.getElementById('alarmList');
+  if(!alarms.length){
+    l.innerHTML='<div style="color:rgba(0,255,65,.2);font-size:10px;letter-spacing:2px;padding:12px 0">// KAYITLI ALARM YOK</div>';
+    updateCount();return;
+  }
+  l.innerHTML='';
+  alarms.forEach((a,i)=>{
+    const d=document.createElement('div');
+    d.className=`alarm-item${a.on?' active':''}`;
+    d.innerHTML=`
+      <div class="alarm-item-time">${a.time}</div>
+      <div class="alarm-item-label">${a.label}</div>
+      <div class="toggle${a.on?' on':''}" onclick="toggleA(${i})"><div class="toggle-knob"></div></div>
+      <div class="alarm-item-del" onclick="delA(${i})">🗑</div>
+    `;
+    l.appendChild(d);
+  });
+  updateCount();
+}
+
+function addAlarm(){
+  const t=document.getElementById('alarmTime').value;
+  const lb=document.getElementById('alarmLabel').value.trim().toUpperCase()||'ALARM';
+  if(!t)return;
+  alarms.push({time:t,label:lb,on:true,fired:false});
+  saveA();renderAlarms();
+  document.getElementById('alarmTime').value='';
+  document.getElementById('alarmLabel').value='';
+}
+
+function toggleA(i){
+  alarms[i].on=!alarms[i].on;
+  alarms[i].fired=false;
+  saveA();renderAlarms();
+}
+
+function delA(i){
+  alarms.splice(i,1);
+  saveA();renderAlarms();
+}
+
+function toggleAlarmPanel(){
+  document.getElementById('alarm-panel').classList.toggle('open');
+}
+
+let ringAC=null;
+
+function checkAlarms(H,M,S){
+  const now=`${pad(H)}:${pad(M)}`;
+  alarms.forEach((a,i)=>{
+    if(a.on&&a.time===now&&!a.fired){
+      a.fired=true;saveA();ringAlarm(a);
+    }
+    if(a.time!==now&&a.fired) a.fired=false;
+  });
+}
+
+function ringAlarm(a){
+  document.getElementById('ringTime').textContent=a.time;
+  document.getElementById('ringLabel').textContent=`// ${a.label} //`;
+  document.getElementById('alarm-ring').classList.add('show');
+
+  // Beep
+  try{
+    ringAC=new AudioContext();
+    const pat=[0,.45,.9,1.35,1.8,2.25,2.7,3.15,3.6,4.05];
+    pat.forEach(t=>{
+      const o=ringAC.createOscillator();
+      const g=ringAC.createGain();
+      o.connect(g);g.connect(ringAC.destination);
+      o.type='square';
+      o.frequency.setValueAtTime(880,ringAC.currentTime+t);
+      o.frequency.setValueAtTime(1100,ringAC.currentTime+t+.18);
+      g.gain.setValueAtTime(.15,ringAC.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(.001,ringAC.currentTime+t+.38);
+      o.start(ringAC.currentTime+t);
+      o.stop(ringAC.currentTime+t+.4);
+    });
+  } catch(e){}
+}
+
+function dismissAlarm(){
+  document.getElementById('alarm-ring').classList.remove('show');
+  if(ringAC){try{ringAC.close();}catch(e){} ringAC=null;}
+}
+
+renderAlarms();
+
+// ════════════════════════════════════
+// DATA STREAM
+// ════════════════════════════════════
+const SD=document.getElementById('dataStream');
+['NODE:7734','SYS:RUN','VIZ:ON','MIC:RDY','HAV:OK','NTP:SYNC',
+ 'ALRM:RDY','PKT:0341','ERR:NULL','LAT:41.00','LON:28.97','ENC:AES']
+.forEach(s=>{
+  const d=document.createElement('div');
+  d.className='stream-item';d.textContent=s;
+  SD.appendChild(d);
+});
+setInterval(()=>{
+  const items=document.querySelectorAll('.stream-item');
+  const t=items[Math.floor(Math.random()*items.length)];
+  t.textContent=Math.floor(Math.random()*0xFFFF).toString(16)
+    .toUpperCase().padStart(4,'0').match(/.{2}/g).join(':')+
+    ':'+Math.floor(Math.random()*99).toString().padStart(2,'0');
+},850);
+
+// ════════════════════════════════════
+// TOUCH RIPPLE
+// ════════════════════════════════════
+addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  const r=document.createElement('div');
+  r.className='ripple';
+  r.style.left=(t.clientX-40)+'px';
+  r.style.top=(t.clientY-40)+'px';
+  document.body.appendChild(r);
+  requestAnimationFrame(()=>{r.style.transform='scale(5)';r.style.opacity='0';});
+  setTimeout(()=>r.remove(),800);
+},{passive:true});
+
+</script>
+</body>
+</html>
